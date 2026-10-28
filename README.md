@@ -7,11 +7,22 @@ Configurei a integração contínua da API Bookstore com GitHub Actions. O workf
 
 ## Continuidade do projeto e do ambiente
 
-Dei continuidade à entrega do [módulo 21 — Docker Network](https://github.com/mtgbcma-dotcom/m21-network/pull/1). Mantive os modelos, os serializers, a migração inicial e os testes de serializers do Bookstore, além das funcionalidades acrescentadas nas etapas anteriores.
+Dei continuidade ao [módulo 21 — Docker Network](https://github.com/mtgbcma-dotcom/m21-network/pull/1). Mantive os modelos, serializers, migração inicial, paginação, autenticação e testes da API Bookstore.
 
-Nos módulos 15 e 16, utilizei Poetry com `pyproject.toml` e `poetry.lock`. A partir do módulo 17, passei a declarar as dependências em `requirements.txt` e a instalar com pip. Nas etapas com Docker, o próprio Dockerfile executa essa instalação durante a construção da imagem. Documentei essa mudança de ferramenta para deixar explícita a continuidade do mesmo projeto.
+Mantive **Poetry** como gerenciador do projeto, com `pyproject.toml` e `poetry.lock` versionados. Preservei a identificação `m57-bookstore` e as dependências da base corrigida do módulo 17. Acrescentei ao manifesto somente as dependências necessárias para esta etapa e atualizei o lock pelo Poetry.
 
-Para reproduzir esta entrega, utilizei os comandos e os arquivos de dependências desta versão, descritos abaixo. A instalação com pip segue as faixas registradas em `requirements.txt`; o lock do Poetry das etapas anteriores continua disponível nos respectivos repositórios.
+Configurei o Dockerfile para instalar Poetry 2.5.1, conferir o lock e instalar as dependências com `poetry install --only main --no-root`. O pip instala apenas a ferramenta Poetry na imagem; as dependências da aplicação são instaladas pelo Poetry a partir do lock.
+
+Os arquivos `requirements*.txt` são exportações de compatibilidade do mesmo lock, utilizadas quando uma plataforma exige esse formato. A fonte de dependências desta entrega é o manifesto e o lock do Poetry. Registrei a continuidade e a validação em [docs/CONTINUIDADE.md](docs/CONTINUIDADE.md).
+
+Para conferir o manifesto no computador com Poetry 2.5.1 instalado:
+
+```powershell
+poetry check --lock
+poetry install --no-root --no-interaction
+```
+
+Nos módulos com PostgreSQL, executei os testes nos serviços Docker descritos abaixo, onde o banco está configurado. No contêiner, utilizei `poetry run python manage.py test` no mesmo ambiente instalado pelo Poetry.
 
 ## Integracao continua
 
@@ -47,9 +58,9 @@ Depois de iniciar os serviços e configurar o `.env`, execute no PowerShell:
 ```powershell
 docker compose config --quiet
 docker compose up -d --build --wait --wait-timeout 120
-docker compose exec -T web python manage.py check
-docker compose exec -T web python manage.py makemigrations --check --dry-run
-docker compose exec -T web python manage.py test --verbosity 2
+docker compose exec -T web poetry run python manage.py check
+docker compose exec -T web poetry run python manage.py makemigrations --check --dry-run
+docker compose exec -T web poetry run python manage.py test --verbosity 2
 ```
 
 São os mesmos comandos de verificação utilizados no workflow. O resultado local confirma o funcionamento dos comandos; a execução no GitHub é acompanhada na aba Actions após o envio da branch.
@@ -114,7 +125,7 @@ docker compose logs --tail 60 web db
 ### 3. Criar o administrador
 
 ```powershell
-docker compose exec web python manage.py createsuperuser
+docker compose exec web poetry run python manage.py createsuperuser
 ```
 
 Preencha seu usuário, e-mail e senha. A senha não aparece durante a digitação. Este banco é independente dos módulos anteriores, portanto é necessário criar um administrador nele.
@@ -122,7 +133,7 @@ Preencha seu usuário, e-mail e senha. A senha não aparece durante a digitaçã
 ### 4. Criar os produtos de exemplo
 
 ```powershell
-docker compose exec web python manage.py seed_demo
+docker compose exec web poetry run python manage.py seed_demo
 ```
 
 São criadas 12 categorias e 12 produtos para conferir a paginação. Executar novamente não duplica os mesmos registros. O comando não cria pedidos nem usuários.
@@ -196,15 +207,15 @@ A comunicação entre os serviços utiliza `db:5432`. O navegador utiliza `127.0
 Confira a conexão com o servidor de banco de dados:
 
 ```powershell
-docker compose exec web python manage.py shell -c "from django.db import connection; cursor = connection.cursor(); cursor.execute('SELECT version()'); print(cursor.fetchone()[0])"
+docker compose exec web poetry run python manage.py shell -c "from django.db import connection; cursor = connection.cursor(); cursor.execute('SELECT version()'); print(cursor.fetchone()[0])"
 ```
 
 A saída deve informar PostgreSQL 17. A aplicação está configurada para usar PostgreSQL, incluindo o banco temporário criado pelo Django durante os testes.
 
 ```powershell
-docker compose exec web python manage.py check
-docker compose exec web python manage.py makemigrations --check --dry-run
-docker compose exec web python manage.py test --verbosity 2
+docker compose exec web poetry run python manage.py check
+docker compose exec web poetry run python manage.py makemigrations --check --dry-run
+docker compose exec web poetry run python manage.py test --verbosity 2
 ```
 
 A suíte contém 86 testes de serializers, operações da API, permissões, paginação e autenticação por token. O esperado é terminar com `Ran 86 tests` e `OK`. O banco temporário dos testes é removido ao concluir, preservando os produtos e usuários cadastrados para a demonstração.
